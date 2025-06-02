@@ -1,15 +1,14 @@
 # weather_api_server.py
 from flask import Flask, jsonify, render_template_string
-import csv
-import io  # Para leer el archivo de S3 en memoria
-import boto3  # AWS SDK para Python
-import ast  # Para convertir la representación string de la lista a lista real
+import io      # Para leer el archivo de S3 en memoria
+import boto3   # AWS SDK para Python
+import ast     # Para convertir la representación string de la lista a lista real
 
 app = Flask(__name__)
 
-# Configuración de S3 (ajusten según su bucket y archivo)
-S3_BUCKET_NAME = 'su-bucket-nombre'  # ¡CAMBIAR ESTO!
-S3_WEATHER_KEY = 'proyecto-mr/output/weather_results.csv'  # ¡CAMBIAR ESTO!
+# En lugar de definir bucket y key por separado, usamos la URI completa:
+#   s3://mapreduce-emr-project/output/local_emr_node_output.txt
+S3_URI = 's3://mapreduce-emr-project/output/local_emr_node_output.txt'
 
 # HTML para una tabla simple de datos meteorológicos
 HTML_TEMPLATE = """
@@ -43,46 +42,68 @@ HTML_TEMPLATE = """
 </html>
 """
 
+def parse_s3_uri(uri: str):
+    """
+    Toma una URI con formato "s3://bucket-name/path/to/object"
+    y retorna (bucket_name, object_key).
+    """
+    if not uri.startswith('s3://'):
+        raise ValueError(f"URI inválida: {uri}")
+    path = uri[5:]  # quitar "s3://"
+    parts = path.split('/', 1)
+    if len(parts) != 2 or not parts[0] or not parts[1]:
+        raise ValueError(f"URI inválida o incompleta: {uri}")
+    bucket_name, object_key = parts[0], parts[1]
+    return bucket_name, object_key
+
 def get_weather_from_s3():
     """
-    Obtiene el archivo CSV de S3, lo lee línea a línea y convierte cada fila
-    en un dict con claves 'month', 'temperature' y 'precipitation'.
-    El CSV debe tener formato:
+    Obtiene el archivo .txt de S3 usando la URI definida en S3_URI,
+    lo lee línea a línea y convierte cada línea en un dict con claves
+    'month', 'temperature' y 'precipitation'.
+    Cada línea del .txt debe tener formato:
         "2023-01"    [24.75, 106.5]
-        "2023-02"    [25.99, 56.7]
-        ...
-    Separador de columnas: TAB
+    Separador entre mes y lista: espacio(s) o tab. Se usa split(maxsplit=1).
     """
+    try:
+        bucket, key = parse_s3_uri(S3_URI)
+    except ValueError as e:
+        print(f"Error al parsear S3_URI: {e}")
+        return None
+
     s3 = boto3.client('s3')
     try:
-        obj = s3.get_object(Bucket=S3_BUCKET_NAME, Key=S3_WEATHER_KEY)
+        obj = s3.get_object(Bucket=bucket, Key=key)
         content = obj['Body'].read().decode('utf-8')
 
         results = []
-        csv_file = io.StringIO(content)
-        reader = csv.reader(csv_file, delimiter='\t')
+        for raw_line in content.splitlines():
+            line = raw_line.strip()
+            if not line:
+                continue  # saltar líneas vacías
 
-        for row in reader:
-            if len(row) == 2:
-                month = row[0].strip('"')
-                try:
-                    # Se espera que row[1] sea algo como "[24.75, 106.5]"
-                    value_list = ast.literal_eval(row[1])
-                    if (
-                        isinstance(value_list, list)
-                        and len(value_list) == 2
-                    ):
-                        temp = float(value_list[0])
-                        precip = float(value_list[1])
-                        results.append({
-                            'month': month,
-                            'temperature': temp,
-                            'precipitation': precip
-                        })
-                except (ValueError, SyntaxError, TypeError):
-                    # Si falla el parseo, se omite esa fila
-                    print(f"Fila malformada, se omite: {row}")
-                    continue
+            # Separar "mes" y "[temperatura, precipitación]"
+            parts = line.split(maxsplit=1)
+            if len(parts) != 2:
+                print(f"Línea malformada, se omite: {line}")
+                continue
+
+            month = parts[0].strip('"')  # quitar comillas del mes
+            try:
+                value_list = ast.literal_eval(parts[1])
+                if isinstance(value_list, list) and len(value_list) == 2:
+                    temp   = float(value_list[0])
+                    precip = float(value_list[1])
+                    results.append({
+                        'month': month,
+                        'temperature': temp,
+                        'precipitation': precip
+                    })
+                else:
+                    print(f"Valor no es lista de dos elementos: {parts[1]}")
+            except (ValueError, SyntaxError, TypeError):
+                print(f"Error parseando valores: {parts[1]}")
+                continue
 
         return results
 
