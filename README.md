@@ -97,6 +97,19 @@ Los resultados incluyen:
 - Precipitación total mensual
 - Visualización tabular de datos
 
+## Ejemplo de resultado en api/weather
+"2023-01"	{"avg_max_temp": 24.75, "total_precip": 106.5}
+"2023-02"	{"avg_max_temp": 25.99, "total_precip": 56.7}
+"2023-03"	{"avg_max_temp": 25.27, "total_precip": 229.4}
+"2023-04"	{"avg_max_temp": 25.66, "total_precip": 150.2}
+"2023-05"	{"avg_max_temp": 26.77, "total_precip": 203.9}
+"2023-06"	{"avg_max_temp": 26.78, "total_precip": 53.7}
+"2023-07"	{"avg_max_temp": 27.89, "total_precip": 58.0}
+"2023-08"	....
+
+## Ejemplo de resultado de view/weather
+
+
 ### Notas Técnicas
 - El proyecto utiliza AWS EMR para el procesamiento distribuido
 - Los datos se almacenan en S3
