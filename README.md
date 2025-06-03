@@ -108,6 +108,7 @@ Los resultados incluyen:
 "2023-08"	....
 
 ## Ejemplo de resultado de view/weather
+![image](https://github.com/user-attachments/assets/53c9d3c3-37a2-47a6-a0a8-2f6652ba4966)
 
 
 ### Notas Técnicas
