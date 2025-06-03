@@ -1,4 +1,4 @@
-# Análisis de Datos Meteorológicos con MapReduce
+# Análisis de Datos Meteorológicos con Mapreduce
 ## Universidad EAFIT - ST0263: Tópicos Especiales en Telemática, 2025-1
 
 [![GitHub](https://img.shields.io/badge/GitHub-Repository-blue)](https://github.com/santig005/MapReduce---Data-enginering)
