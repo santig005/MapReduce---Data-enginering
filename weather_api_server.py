@@ -2,13 +2,13 @@
 from flask import Flask, jsonify, render_template_string
 import io      # Para leer el archivo de S3 en memoria
 import boto3   # AWS SDK para Python
-import ast     # Para convertir la representación string de la lista a lista real
+import ast     # Para convertir la representación string a estructuras de Python
 
 app = Flask(__name__)
 
-# En lugar de definir bucket y key por separado, usamos la URI completa:
-#   s3://mapreduce-emr-project/output/local_emr_node_output.txt
-S3_URI = 's3://mapreduce-emr-project/output/local_emr_node_output.txt'
+# URI completa del objeto en S3:
+#   s3://mapreduce-emr-project/output/final_weather_stats.txt
+S3_URI = 's3://mapreduce-emr-project/output/final_weather_stats.txt'
 
 # HTML para una tabla simple de datos meteorológicos
 HTML_TEMPLATE = """
@@ -61,9 +61,11 @@ def get_weather_from_s3():
     Obtiene el archivo .txt de S3 usando la URI definida en S3_URI,
     lo lee línea a línea y convierte cada línea en un dict con claves
     'month', 'temperature' y 'precipitation'.
-    Cada línea del .txt debe tener formato:
-        "2023-01"    [24.75, 106.5]
-    Separador entre mes y lista: espacio(s) o tab. Se usa split(maxsplit=1).
+
+    Cada línea del .txt ahora tiene formato:
+        "2023-01"    {"avg_max_temp": 24.75, "total_precip": 106.5}
+
+    Separador entre mes y diccionario: espacio(s) o tab. Se usa split(maxsplit=1).
     """
     try:
         bucket, key = parse_s3_uri(S3_URI)
@@ -82,7 +84,7 @@ def get_weather_from_s3():
             if not line:
                 continue  # saltar líneas vacías
 
-            # Separar "mes" y "[temperatura, precipitación]"
+            # Separar "mes" y diccionario JSON literal
             parts = line.split(maxsplit=1)
             if len(parts) != 2:
                 print(f"Línea malformada, se omite: {line}")
@@ -90,17 +92,22 @@ def get_weather_from_s3():
 
             month = parts[0].strip('"')  # quitar comillas del mes
             try:
-                value_list = ast.literal_eval(parts[1])
-                if isinstance(value_list, list) and len(value_list) == 2:
-                    temp   = float(value_list[0])
-                    precip = float(value_list[1])
+                value_dict = ast.literal_eval(parts[1])
+                # Se espera un dict con claves "avg_max_temp" y "total_precip"
+                if (
+                    isinstance(value_dict, dict)
+                    and 'avg_max_temp' in value_dict
+                    and 'total_precip' in value_dict
+                ):
+                    temp   = float(value_dict['avg_max_temp'])
+                    precip = float(value_dict['total_precip'])
                     results.append({
                         'month': month,
                         'temperature': temp,
                         'precipitation': precip
                     })
                 else:
-                    print(f"Valor no es lista de dos elementos: {parts[1]}")
+                    print(f"Valor no es dict esperado: {parts[1]}")
             except (ValueError, SyntaxError, TypeError):
                 print(f"Error parseando valores: {parts[1]}")
                 continue
